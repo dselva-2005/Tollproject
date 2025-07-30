@@ -1,0 +1,17 @@
+name: yoloplate
+channels:
+  - nvidia
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - opencv
+  - pytorch=2.3.0
+  - torchvision=0.18.0
+  - pytorch-cuda=12.4
+  - cuda-toolkit=12.4
+  - pip:
+      - ultralytics>=8.0.221
+      - easyocr>=1.7.1
