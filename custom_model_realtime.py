@@ -30,7 +30,6 @@ print("✅ Stream opened. Press 'q' to quit.")
 
 def extract_plate_number(text):
     text = text.upper().replace(" ", "")
-    text = text.replace("O", "0").replace("I", "1").replace("Z", "2")
     text = re.sub(r"[^A-Z0-9]", "", text)
     pattern = r"\b([A-Z]{2}\d{1,2}[A-Z]{1,3}\d{1,4})\b"
     matches = re.findall(pattern, text)

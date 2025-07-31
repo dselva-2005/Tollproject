@@ -14,9 +14,11 @@ trocr = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-small-printed
 
 # Extract valid plate number
 def extract_plate(text):
-    clean = re.sub(r"[^A-Z0-9]", "", text.upper())
-    match = re.findall(r"[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}", clean)
-    return match[0] if match else None
+    text = text.upper().replace(" ", "")
+    text = re.sub(r"[^A-Z0-9]", "", text)
+    pattern = r"\b([A-Z]{2}\d{1,2}[A-Z]{1,3}\d{1,4})\b"
+    matches = re.findall(pattern, text)
+    return max(matches, key=len) if matches else text
 
 # OCR using TrOCR
 def recognize_plate(img):
