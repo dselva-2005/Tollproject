@@ -16,8 +16,8 @@ processor = TrOCRProcessor.from_pretrained("microsoft/trocr-small-printed")
 trocr = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-small-printed").to(device)
 
 # Create folder and text file
-os.makedirs("detected_plates", exist_ok=True)
-plate_log_file = open("detected_plates/plates.txt", "a")
+# os.makedirs("detected_plates", exist_ok=True)
+# plate_log_file = open("detected_plates/plates.txt", "a")
 
 stream_url = "http://192.168.1.100:8080/video"
 cap = cv2.VideoCapture(stream_url)
@@ -64,9 +64,9 @@ while True:
 
                 if final_plate:
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    cv2.imwrite(f"detected_plates/{final_plate}_{timestamp}.jpg", plate_img)
-                    plate_log_file.write(f"{timestamp}: {final_plate}\n")
-                    plate_log_file.flush()
+                    # cv2.imwrite(f"detected_plates/{final_plate}_{timestamp}.jpg", plate_img)
+                    # plate_log_file.write(f"{timestamp}: {final_plate}\n")
+                    # plate_log_file.flush()
 
                     print(f"[{timestamp}] '{raw_text}' → '{final_plate}'")
 
@@ -83,4 +83,4 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
-plate_log_file.close()
+# plate_log_file.close()
