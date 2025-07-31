@@ -19,7 +19,7 @@ trocr = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-small-printed
 os.makedirs("detected_plates", exist_ok=True)
 plate_log_file = open("detected_plates/plates.txt", "a")
 
-stream_url = "http://10.144.70.59:8080/video"
+stream_url = "http://192.168.1.100:8080/video"
 cap = cv2.VideoCapture(stream_url)
 
 if not cap.isOpened():
