@@ -1,6 +1,7 @@
 /archive
 /detected_plates
 /yolo_dataset
+/test_samples
 /runs
 archive.zip
 yolov8l.pt

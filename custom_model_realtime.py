@@ -21,6 +21,7 @@ trocr = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-small-printed
 
 stream_url = "http://192.168.1.100:8080/video"
 cap = cv2.VideoCapture(stream_url)
+# cap = cv2.VideoCapture('test_samples/20250801_083520.jpg')
 
 if not cap.isOpened():
     print(f"❌ Failed to open video stream at {stream_url}")
@@ -75,7 +76,10 @@ while True:
             except Exception as e:
                 print(f"⚠️ OCR failed: {e}")
 
-    cv2.imshow("ANPR - TrOCR + YOLOv8", frame)
+        cv2.namedWindow("ANPR - TrOCR + YOLOv8", cv2.WINDOW_NORMAL)
+        screen_res = (1280, 720)  # You can also use (1920, 1080) depending on your screen
+        cv2.resizeWindow("ANPR - TrOCR + YOLOv8", *screen_res)
+        cv2.imshow("ANPR - TrOCR + YOLOv8", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
