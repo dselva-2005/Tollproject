@@ -5,12 +5,13 @@ from PIL import Image
 import torch
 import re
 
-# Load YOLO model
+# Paths
 model = YOLO("/home/dselva/MINIPROJECTTE/weights/best.pt")
 
-# Load TrOCR (small, printed version)
-processor = TrOCRProcessor.from_pretrained("microsoft/trocr-small-printed")
-trocr = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-small-printed").to("cuda" if torch.cuda.is_available() else "cpu")
+model_dir = "microsoft/trocr-base-printed"  # ✅ Folder where you saved the fine-tuned model
+# Load model and processor
+processor = TrOCRProcessor.from_pretrained(model_dir)
+trocr = VisionEncoderDecoderModel.from_pretrained(model_dir).to("cuda" if torch.cuda.is_available() else "cpu")
 
 # Extract valid plate number
 def extract_plate(text):
@@ -29,7 +30,10 @@ def recognize_plate(img):
     return extract_plate(text)
 
 # Stream from IP cam
-cap = cv2.VideoCapture("http://192.168.1.100:8080/video")
+# stream_url = "http://192.168.1.100:8080/video"
+stream_url = "test_samples/img5.jpg"
+cap = cv2.VideoCapture(stream_url)
+
 if not cap.isOpened():
     exit()
 

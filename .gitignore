@@ -3,5 +3,8 @@
 /yolo_dataset
 /test_samples
 /runs
+/training
+/trocr-base-printed
+/model_output
 archive.zip
 yolov8l.pt
