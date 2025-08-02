@@ -8,3 +8,5 @@
 /model_output
 archive.zip
 yolov8l.pt
+*.txt
+*.pyc
