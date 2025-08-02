@@ -19,10 +19,10 @@ hf_logging.set_verbosity_error()
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # ========== CONFIGURATION ==========
-YOLO_MODEL_PATH = "/home/dselva/MINIPROJECTTE/small_weights/best.pt"
+YOLO_MODEL_PATH = "/home/dselva/MINIPROJECTTE/nanomodel/best.pt"
 VIDEO_SOURCE = "../test_samples/video1.mp4"
 CONFIDENCE_THRESHOLD = 0.75
-OCR_BACKEND = "paddle"  # "trocr", "paddle", "easyocr"
+OCR_BACKEND = "trocr"  # "trocr", "paddle", "easyocr"
 TROCR_MODEL = "microsoft/trocr-base-printed"
 
 VALID_STATES = {
