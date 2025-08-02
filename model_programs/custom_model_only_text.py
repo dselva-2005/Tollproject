@@ -11,19 +11,19 @@ from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 from transformers.utils import logging as hf_logging
 from ultralytics.utils import LOGGER
 
-# ========== SUPPRESS LOGS ========== #
-os.environ['YOLO_VERBOSE'] = 'False'
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
+# ========== SUPPRESS LOGS ==========
+os.environ["YOLO_VERBOSE"] = "False"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 LOGGER.setLevel(logging.ERROR)
 hf_logging.set_verbosity_error()
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# ========== CONFIGURATION ========== #
-YOLO_MODEL_PATH = "/home/dselva/MINIPROJECTTE/weights/best.pt"
-TROCR_MODEL_NAME = "microsoft/trocr-small-printed"
+# ========== CONFIGURATION ==========
+YOLO_MODEL_PATH = "/home/dselva/MINIPROJECTTE/small_weights/best.pt"
 VIDEO_SOURCE = "../test_samples/video1.mp4"
 CONFIDENCE_THRESHOLD = 0.75
+OCR_BACKEND = "paddle"  # "trocr", "paddle", "easyocr"
+TROCR_MODEL = "microsoft/trocr-base-printed"
 
 VALID_STATES = {
     "AP", "AR", "AS", "BR", "CH", "CT", "DN", "DD", "DL", "GA", "GJ", "HR", "HP",
@@ -31,31 +31,65 @@ VALID_STATES = {
     "PB", "PY", "RJ", "SK", "TN", "TR", "TS", "UK", "UP", "WB"
 }
 
-# ========== INITIALIZE MODELS ========== #
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-print(f"[INFO] Loading YOLO model from: {YOLO_MODEL_PATH}")
-detector = YOLO(YOLO_MODEL_PATH)
+# ========== OCR BACKEND WRAPPER ==========
+class OCRRecognizer:
+    def __init__(self, backend="trocr"):
+        self.backend = backend.lower()
 
-print(f"[INFO] Loading TrOCR model from: {TROCR_MODEL_NAME}")
-processor = TrOCRProcessor.from_pretrained(TROCR_MODEL_NAME)
-trocr = VisionEncoderDecoderModel.from_pretrained(TROCR_MODEL_NAME).to(device)
+        if self.backend == "trocr":
+            print("[INFO] Loading TrOCR...")
+            self.processor = TrOCRProcessor.from_pretrained(TROCR_MODEL)
+            self.model = VisionEncoderDecoderModel.from_pretrained(TROCR_MODEL).to(device)
 
-# ========== UTILITIES ========== #
-def extract_plate(text: str) -> str | None:
-    text = re.sub(r"[^A-Z0-9]", "", text.upper())
-    match = re.fullmatch(r"([A-Z]{2})(\d{2})([A-Z]{1,3})(\d{4})", text)
-    if match and match.group(1) in VALID_STATES:
-        return "".join(match.groups())
-    return None
+        elif self.backend == "paddle":
+            print("[INFO] Loading PaddleOCR...")
+            from paddleocr import PaddleOCR
+            self.model = PaddleOCR(
+                use_angle_cls=False,
+                use_doc_orientation_classify=False,
+                use_doc_unwarping=False
+            )
 
-def recognize_plate(image) -> str | None:
-    pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    inputs = processor(images=pil_img, return_tensors="pt").pixel_values.to(device)
-    output_ids = trocr.generate(inputs)
-    decoded = processor.batch_decode(output_ids, skip_special_tokens=True)[0]
-    return extract_plate(decoded)
+        elif self.backend == "easyocr":
+            print("[INFO] Loading EasyOCR...")
+            import easyocr
+            self.model = easyocr.Reader(["en"], gpu=(device == "cuda"))
 
+        else:
+            raise ValueError(f"OCR backend '{self.backend}' is not supported.")
+
+    def recognize(self, image):
+        if self.backend == "trocr":
+            pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            inputs = self.processor(images=pil_img, return_tensors="pt").pixel_values.to(device)
+            output_ids = self.model.generate(inputs)
+            text = self.processor.batch_decode(output_ids, skip_special_tokens=True)[0]
+
+        elif self.backend == "paddle":
+            result = self.model.predict(image)
+            try:
+                text = result[0]["rec_texts"][0]
+            except:
+                text = ""
+
+        elif self.backend == "easyocr":
+            result = self.model.readtext(image)
+            text = result[0][1] if result else ""
+
+        else:
+            raise NotImplementedError(f"OCR backend '{self.backend}' not implemented.")
+
+        return self.clean_plate(text)
+
+    @staticmethod
+    def clean_plate(text):
+        text = re.sub(r"[^A-Z0-9]", "", text.upper())
+        match = re.fullmatch(r"([A-Z]{2})(\d{2})([A-Z]{1,3})(\d{4})", text)
+        return "".join(match.groups()) if match and match.group(1) in VALID_STATES else None
+
+# ========== UTILITY ==========
 def format_timestamp(ms: float) -> str:
     total_seconds = int(ms / 1000)
     hours = total_seconds // 3600
@@ -63,7 +97,7 @@ def format_timestamp(ms: float) -> str:
     seconds = total_seconds % 60
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-# ========== MAIN FUNCTION ========== #
+# ========== MAIN ==========
 def main():
     print(f"[INFO] Starting video source: {VIDEO_SOURCE}")
     cap = cv2.VideoCapture(VIDEO_SOURCE)
@@ -71,6 +105,8 @@ def main():
         print("[ERROR] Failed to open video.")
         return
 
+    detector = YOLO(YOLO_MODEL_PATH)
+    ocr = OCRRecognizer(backend=OCR_BACKEND)
     plates_detected = set()
 
     while True:
@@ -90,15 +126,14 @@ def main():
                 cropped_plate = frame[y1:y2, x1:x2]
 
                 try:
-                    plate = recognize_plate(cropped_plate)
+                    plate = ocr.recognize(cropped_plate)
                     if plate and plate not in plates_detected:
                         plates_detected.add(plate)
-                        readable_time = format_timestamp(timestamp_ms)
-                        print(f"[DETECTED] {plate} at {readable_time}")
-                except Exception as e:
+                        print(f"[DETECTED] {plate} at {format_timestamp(timestamp_ms)}")
+                except:
                     continue
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
     cap.release()
@@ -106,9 +141,8 @@ def main():
     for plate in sorted(plates_detected):
         print(plate)
 
-# ========== ENTRY POINT ========== #
+# ========== ENTRY POINT ==========
 if __name__ == "__main__":
     start_time = time.time()
     main()
-    end_time = time.time()
-    print(f"Elapsed time: {end_time - start_time:.4f} seconds")
+    print(f"Elapsed time: {time.time() - start_time:.4f} seconds")

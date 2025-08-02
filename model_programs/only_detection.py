@@ -34,27 +34,10 @@ VALID_STATES = {
 class ModelLoader:
     def __init__(self, yolo_path: str, trocr_model: str):
         self.detector = YOLO(yolo_path, verbose=False)
-        self.processor = TrOCRProcessor.from_pretrained(trocr_model)
-        self.trocr = VisionEncoderDecoderModel.from_pretrained(trocr_model).to(DEVICE)
 
     def detect_plates(self, frame):
         return self.detector(frame, stream=True)
 
-    def recognize_text(self, plate_img):
-        pil_img = Image.fromarray(cv2.cvtColor(plate_img, cv2.COLOR_BGR2RGB))
-        inputs = self.processor(images=pil_img, return_tensors="pt").pixel_values.to(DEVICE)
-        output_ids = self.trocr.generate(inputs)
-        text = self.processor.batch_decode(output_ids, skip_special_tokens=True)[0]
-        return text.strip()
-
-# ========== UTILITIES ==========
-def extract_valid_plate(text: str) -> str | None:
-    text = re.sub(r"[^A-Z0-9]", "", text.upper().replace(" ", ""))
-    pattern = re.compile(r"^([A-Z]{2})(\d{2})([A-Z]{1,3})(\d{4})$")
-    match = pattern.fullmatch(text)
-    if not match or match.group(1) not in VALID_STATES:
-        return None
-    return "".join(match.groups())
 
 def draw_plate_box(frame, plate_text, box_coords):
     x1, y1, x2, y2 = box_coords
@@ -76,8 +59,6 @@ class ANPRSystem:
         print("✅ Stream opened. Press 'q' to quit.")
 
     def process_frame(self, frame):
-        timestamp_ms = self.capture.get(cv2.CAP_PROP_POS_MSEC)
-        timestamp = datetime.utcfromtimestamp(timestamp_ms / 1000).strftime("%H:%M:%S.%f")[:-3]
 
         detections = self.model_loader.detect_plates(frame)
         for result in detections:
@@ -86,9 +67,8 @@ class ANPRSystem:
                 if conf < CONFIDENCE_THRESHOLD:
                     continue
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
-                plate_img = frame[y1:y2, x1:x2]
                 draw_plate_box(frame, "plate", (x1, y1, x2, y2))
-                
+
         return frame
 
     def run(self):
@@ -101,7 +81,7 @@ class ANPRSystem:
             cv2.namedWindow("ANPR - TrOCR + YOLOv8", cv2.WINDOW_NORMAL)
             cv2.resizeWindow("ANPR - TrOCR + YOLOv8", 1280, 720)
             cv2.imshow("ANPR - TrOCR + YOLOv8", frame)
-            time.sleep(0.1)
+            # time.sleep(0.1)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
         self.cleanup()
@@ -112,8 +92,8 @@ class ANPRSystem:
 
 # ========== MAIN FUNCTION ==========
 def main():
-    YOLO_PATH = "/home/dselva/MINIPROJECTTE/weights/best.pt"
-    TYOCR_MODEL = "microsoft/trocr-large-printed"
+    YOLO_PATH = "/home/dselva/MINIPROJECTTE/nanomodel/best.pt"
+    TYOCR_MODEL = "microsoft/trocr-base-printed"
     VIDEO_SOURCE = "../test_samples/video3.mp4"  # or use live stream URL
 
     try:

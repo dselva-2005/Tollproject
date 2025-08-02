@@ -9,6 +9,7 @@ from PIL import Image
 from datetime import datetime
 from ultralytics import YOLO
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+from paddleocr import PaddleOCR
 from transformers.utils import logging as hf_logging
 from ultralytics.utils import LOGGER
 
@@ -32,20 +33,36 @@ VALID_STATES = {
 
 # ========== MODEL LOADER ==========
 class ModelLoader:
-    def __init__(self, yolo_path: str, trocr_model: str):
+    def __init__(self, yolo_path: str, model_type: str, model_name: str):
         self.detector = YOLO(yolo_path, verbose=False)
-        self.processor = TrOCRProcessor.from_pretrained(trocr_model)
-        self.trocr = VisionEncoderDecoderModel.from_pretrained(trocr_model).to(DEVICE)
+        self.model_type = model_type.lower()
+        if self.model_type == "trocr":
+            self.processor = TrOCRProcessor.from_pretrained(model_name)
+            self.model = VisionEncoderDecoderModel.from_pretrained(model_name).to(DEVICE)
+        elif self.model_type == "paddleocr":
+            self.model = PaddleOCR(
+                use_doc_orientation_classify=False,
+                use_doc_unwarping=False,
+                use_textline_orientation=False
+            )
+        else:
+            raise ValueError("Unsupported OCR model type: choose 'trocr' or 'paddleocr'")
 
     def detect_plates(self, frame):
         return self.detector(frame, stream=True)
 
     def recognize_text(self, plate_img):
-        pil_img = Image.fromarray(cv2.cvtColor(plate_img, cv2.COLOR_BGR2RGB))
-        inputs = self.processor(images=pil_img, return_tensors="pt").pixel_values.to(DEVICE)
-        output_ids = self.trocr.generate(inputs)
-        text = self.processor.batch_decode(output_ids, skip_special_tokens=True)[0]
-        return text.strip()
+        if self.model_type == "trocr":
+            pil_img = Image.fromarray(cv2.cvtColor(plate_img, cv2.COLOR_BGR2RGB))
+            inputs = self.processor(images=pil_img, return_tensors="pt").pixel_values.to(DEVICE)
+            output_ids = self.model.generate(inputs)
+            text = self.processor.batch_decode(output_ids, skip_special_tokens=True)[0]
+            return text.strip()
+        elif self.model_type == "paddleocr":
+            results = self.model.predict(plate_img)
+            for result in results:
+                if result['rec_texts'][0]: return result['rec_texts'][0]
+                else : return ""
 
 # ========== UTILITIES ==========
 def extract_valid_plate(text: str) -> str | None:
@@ -66,8 +83,8 @@ def format_timestamp():
 
 # ========== ANPR SYSTEM ==========
 class ANPRSystem:
-    def __init__(self, yolo_path: str, trocr_model: str, source: str):
-        self.model_loader = ModelLoader(yolo_path, trocr_model)
+    def __init__(self, yolo_path: str, ocr_type: str, ocr_model: str, source: str):
+        self.model_loader = ModelLoader(yolo_path, ocr_type, ocr_model)
         self.capture = cv2.VideoCapture(source)
         self.plates_detected = set()
 
@@ -76,8 +93,9 @@ class ANPRSystem:
         print("✅ Stream opened. Press 'q' to quit.")
 
     def process_frame(self, frame):
-        timestamp_ms = self.capture.get(cv2.CAP_PROP_POS_MSEC)
-        timestamp = datetime.utcfromtimestamp(timestamp_ms / 1000).strftime("%H:%M:%S.%f")[:-3]
+        # timestamp_ms = self.capture.get(cv2.CAP_PROP_POS_MSEC)
+        # timestamp = datetime.utcfromtimestamp(timestamp_ms / 1000).strftime("%H:%M:%S.%f")[:-3]
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
 
         detections = self.model_loader.detect_plates(frame)
         for result in detections:
@@ -93,8 +111,8 @@ class ANPRSystem:
                     if plate:
                         print(f"[{timestamp}] '{raw_text}' → '{plate}'")
                         draw_plate_box(frame, plate, (x1, y1, x2, y2))
-                except Exception as e:
-                    print(f"⚠️ OCR failed: {e}")
+                except:
+                    continue
         return frame
 
     def run(self):
@@ -104,9 +122,9 @@ class ANPRSystem:
                 print("❌ Failed to grab frame")
                 break
             frame = self.process_frame(frame)
-            cv2.namedWindow("ANPR - TrOCR + YOLOv8", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("ANPR - TrOCR + YOLOv8", 1280, 720)
-            cv2.imshow("ANPR - TrOCR + YOLOv8", frame)
+            cv2.namedWindow("ANPR System", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("ANPR System", 1280, 720)
+            cv2.imshow("ANPR System", frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
         self.cleanup()
@@ -117,19 +135,21 @@ class ANPRSystem:
 
 # ========== MAIN FUNCTION ==========
 def main():
-    YOLO_PATH = "/home/dselva/MINIPROJECTTE/weights/best.pt"
-    TYOCR_MODEL = "microsoft/trocr-large-printed"
-    VIDEO_SOURCE = "../test_samples/video2.mp4"  # or use live stream URL
+    YOLO_PATH = "/home/dselva/MINIPROJECTTE/nano640/best.pt"
+    OCR_TYPE = "paddleocr"  # "trocr" or "paddleocr"
+    OCR_MODEL = "microsoft/trocr-base-printed"  # ignored if paddleocr
+    VIDEO_SOURCE = "../test_samples/video3.mp4"
+    # VIDEO_SOURCE = "http://192.168.1.100:8080/video"
 
     try:
-        anpr = ANPRSystem(YOLO_PATH, TYOCR_MODEL, VIDEO_SOURCE)
+        anpr = ANPRSystem(YOLO_PATH, OCR_TYPE, OCR_MODEL, VIDEO_SOURCE)
         anpr.run()
     except Exception as e:
         print(f"🚨 Application error: {e}")
+
 
 # ========== ENTRY POINT ==========
 if __name__ == "__main__":
     start_time = time.time()
     main()
-    end_time = time.time()
-    print(f"Elapsed time: {end_time - start_time:.4f} seconds")
+    print(f"Elapsed time: {time.time() - start_time:.4f} seconds")
