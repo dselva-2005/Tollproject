@@ -13,6 +13,7 @@ if not file_list:
     raise FileNotFoundError(f"No image files found in {image_dir}")
 
 filename = file_list[randint(0, len(file_list) - 1)]
+filename = 'image1.png'
 image_path = os.path.join(image_dir, filename)
 
 image = cv2.imread(image_path)
