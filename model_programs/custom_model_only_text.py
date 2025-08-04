@@ -5,6 +5,7 @@ import time
 import torch
 import logging
 import warnings
+import difflib
 from PIL import Image
 from ultralytics import YOLO
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
@@ -22,8 +23,10 @@ warnings.filterwarnings("ignore", category=UserWarning)
 YOLO_MODEL_PATH = "/home/dselva/MINIPROJECTTE/nanomodel/best.pt"
 VIDEO_SOURCE = "../test_samples/video1.mp4"
 CONFIDENCE_THRESHOLD = 0.75
-OCR_BACKEND = "trocr"  # "trocr", "paddle", "easyocr"
-TROCR_MODEL = "microsoft/trocr-base-printed"
+OCR_BACKEND = "paddle"  # Options: "trocr", "paddle", "easyocr"
+TROCR_MODEL = "microsoft/trocr-small-printed"
+EXPORT_RESULTS_PATH = "detected_plates1.txt"
+USE_FUZZY_MATCHING = True  # Optional: set to False to disable fuzzy deduplication
 
 VALID_STATES = {
     "AP", "AR", "AS", "BR", "CH", "CT", "DN", "DD", "DL", "GA", "GJ", "HR", "HP",
@@ -64,7 +67,8 @@ class OCRRecognizer:
         if self.backend == "trocr":
             pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             inputs = self.processor(images=pil_img, return_tensors="pt").pixel_values.to(device)
-            output_ids = self.model.generate(inputs)
+            with torch.no_grad():
+                output_ids = self.model.generate(inputs)
             text = self.processor.batch_decode(output_ids, skip_special_tokens=True)[0]
 
         elif self.backend == "paddle":
@@ -97,6 +101,9 @@ def format_timestamp(ms: float) -> str:
     seconds = total_seconds % 60
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
+def is_similar(a, b, threshold=0.85):
+    return difflib.SequenceMatcher(None, a, b).ratio() >= threshold
+
 # ========== MAIN ==========
 def main():
     print(f"[INFO] Starting video source: {VIDEO_SOURCE}")
@@ -107,7 +114,7 @@ def main():
 
     detector = YOLO(YOLO_MODEL_PATH)
     ocr = OCRRecognizer(backend=OCR_BACKEND)
-    plates_detected = set()
+    plates_detected = []
 
     while True:
         ret, frame = cap.read()
@@ -127,8 +134,15 @@ def main():
 
                 try:
                     plate = ocr.recognize(cropped_plate)
-                    if plate and plate not in plates_detected:
-                        plates_detected.add(plate)
+                    if plate:
+                        if USE_FUZZY_MATCHING:
+                            if any(is_similar(plate, existing_plate) for existing_plate, _ in plates_detected):
+                                continue
+                        else:
+                            if any(plate == existing_plate for existing_plate, _ in plates_detected):
+                                continue
+
+                        plates_detected.append((plate, timestamp_ms))
                         print(f"[DETECTED] {plate} at {format_timestamp(timestamp_ms)}")
                 except:
                     continue
@@ -137,12 +151,19 @@ def main():
             break
 
     cap.release()
-    print("\n[RESULT] All detected plates:")
-    for plate in sorted(plates_detected):
-        print(plate)
+
+    print("\n[RESULT] All detected plates (sorted):")
+    plates_detected.sort(key=lambda x: x[1])
+    with open(EXPORT_RESULTS_PATH, "w") as f:
+        for plate, timestamp in plates_detected:
+            ts_str = format_timestamp(timestamp)
+            print(f"{plate} at {ts_str}")
+            f.write(f"{plate} at {ts_str}\n")
+
+    print(f"\n[INFO] Exported results to {EXPORT_RESULTS_PATH}")
 
 # ========== ENTRY POINT ==========
 if __name__ == "__main__":
     start_time = time.time()
     main()
-    print(f"Elapsed time: {time.time() - start_time:.4f} seconds")
+    print(f"\nElapsed time: {time.time() - start_time:.4f} seconds")

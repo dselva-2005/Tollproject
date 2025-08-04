@@ -8,6 +8,5 @@
 /TrOcr_training
 archive.zip
 yolov8l.pt
-*.txt
 *.pyc
 yolo11n.pt
