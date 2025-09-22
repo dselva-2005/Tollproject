@@ -1,22 +1,21 @@
 import psycopg2  # or pymongo for MongoDB
+import os
+import sys
+import django
+
+# 1. Add backend folder to Python path
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "backend"))
+
+# 2. Set Django settings
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "api.settings")
+django.setup()
+
+# 3. Import your ORM models
+from plates.models import Plate  # adjust 'myapp'
 
 def update_database(result):
-    conn = psycopg2.connect(dbname='tollproject', user='postgres', password='postgres', host='localhost')
-    cur = conn.cursor()
-    print("connection successfull")
-    sql = "INSERT INTO numberplate (plateno) VALUES (%s)"
-    values = (result,)
-    cur.execute(sql, values)
-    conn.commit()
-    cur.close()
-    conn.close()
+    plate = Plate(plate_no = result)
+    plate.save()
 
 def clear_database():
-    conn = psycopg2.connect(dbname='tollproject', user='postgres', password='postgres', host='localhost')
-    cur = conn.cursor()
-    print("connection successfull")
-    sql = "delete from numberplate"
-    cur.execute(sql)
-    conn.commit()
-    cur.close()
-    conn.close()
+    print(Plate.objects.all())

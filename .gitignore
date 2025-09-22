@@ -13,3 +13,4 @@ yolo11n.pt
 **/venv
 **/node_modules
 **/db.sqlite3
+**/__pycache__
