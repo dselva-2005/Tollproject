@@ -10,3 +10,6 @@ archive.zip
 yolov8l.pt
 *.pyc
 yolo11n.pt
+**/venv
+**/node_modules
+**/db.sqlite3
