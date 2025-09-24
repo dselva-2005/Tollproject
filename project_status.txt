@@ -1,0 +1,4 @@
+remaining :
+    - updating the number plates conditionally
+    - user login and admin pannel
+    - hardware programming
