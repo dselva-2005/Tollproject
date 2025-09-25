@@ -135,11 +135,11 @@ class ANPRSystem:
 
 # ========== MAIN FUNCTION ==========
 def main():
-    YOLO_PATH = "/home/dselva/MINIPROJECTTE/nano640/best.pt"
+    YOLO_PATH = "/home/dselva/MINIPROJECTTE/nanomodel/best.pt"
     OCR_TYPE = "paddleocr"  # "trocr" or "paddleocr"
     OCR_MODEL = "microsoft/trocr-base-printed"  # ignored if paddleocr
-    VIDEO_SOURCE = "../test_samples/video3.mp4"
-    # VIDEO_SOURCE = "http://192.168.1.100:8080/video"
+    # VIDEO_SOURCE = "../test_samples/video3.mp4"
+    VIDEO_SOURCE = "http://192.168.1.100:8080/video"
 
     try:
         anpr = ANPRSystem(YOLO_PATH, OCR_TYPE, OCR_MODEL, VIDEO_SOURCE)

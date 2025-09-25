@@ -1,19 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Car Payment Dashboard</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  body {
+    background: linear-gradient(135deg, #000 0%, #2575fc 100%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+    color: #fff;
+    padding: 20px;
+}
+
+  .dashboard-header h1 {
+    font-weight: 700;
+    font-size: 2rem;
+  }
+  .dashboard-header p {
+    font-size: 1.1rem;
+  }
+
+  /* Master-detail layout */
+  .list-container {
+    max-height: 400px;
+    overflow-y: auto;
+    background-color: rgba(255, 255, 255, 0);
+    border-radius: 15px;
+    padding: 10px;
+    color: #fff0;
+    margin-bottom: 20px;
+}
+
+.list-item {
+  cursor: pointer;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0);
+  transition: background 0.2s;
+  color: white;
+}
+
+  .list-item:hover {
+    background-color: rgba(0,123,255,0.1);
+  }
+
+  .list-item.active {
+    background-color: rgba(0,123,255,0.2);
+    font-weight: bold;
+  }
+
+  .detail-card {
+    background-color: rgba(255, 255, 255, 0);
+    color: #fff;
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+  .detail-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+  }
+
+  #payment-qr {
+    max-width: 300px;
+    border-radius: 15px;
+    margin-top: 15px;
+  }
+
+  @media (max-width: 768px) {
+    #payment-qr {
+      max-width: 80%;
+    }
+  }
+
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="text-center dashboard-header mb-4">
+    <h1>Car Payment Dashboard</h1>
+    <p>Click a car to see details and payment QR</p>
+    <button class="btn btn-danger btn-sm mt-2" id="clear-btn">Clear List</button>
+  </div>
+
+  <!-- List of messages -->
+  <div class="list-container mb-4" id="message-list">
+    <!-- List items appended dynamically -->
+  </div>
+
+  <!-- Detail Card -->
+  <div class="detail-card mx-auto" style="max-width:400px;">
+    <h5 class="card-title mb-3 fs-4" id="car-number">Car Number: --</h5>
+    <p class="card-text mb-2" id="distance">Distance Travelled: -- km</p>
+    <p class="card-text mb-2" id="charge-per-km">Charge per km: ₹--</p>
+    <p class="card-text mb-4 fw-bold fs-5" id="total-charge">Total Charge: ₹--</p>
+    <h6 class="mb-2">Scan to Pay</h6>
+    <img id="payment-qr" src="" alt="QR Code">
+  </div>
+</div>
+
 <script>
 const roomName = "lobby";
 const chatSocket = new WebSocket(
-    'ws://' + window.location.host + '/ws/chat/' + roomName + '/'
+  'ws://' + window.location.host + '/ws/chat/' + roomName + '/'
 );
 
+// Cache for messages
+const messageCache = {};
+const messageListEl = document.getElementById('message-list');
+
+// Default QR (shared)
+let qrSrc = "http://192.168.1.113:8000/static/admin/img/scanner.jpeg";
+
+// Render detail card
+function renderDetail(data) {
+  document.getElementById('car-number').innerText = `Car Number: ${data.car_number}`;
+  document.getElementById('distance').innerText = `Distance Travelled: ${data.distance_travelled} km`;
+  document.getElementById('charge-per-km').innerText = `Charge per km: ₹${data.charge_per_km_cars}`;
+  document.getElementById('total-charge').innerText = `Total Charge: ₹${data.total_charge}`;
+  if(qrSrc || data.payment_account){
+    document.getElementById('payment-qr').src = qrSrc || `data:image/jpeg;base64,${data.payment_account}`;
+    if(!qrSrc) qrSrc = document.getElementById('payment-qr').src;
+  }
+}
+
+// Add item to list
+function addMessageItem(data) {
+  const id = data.car_number + '_' + Date.now(); // unique id
+  messageCache[id] = data;
+
+  const item = document.createElement('div');
+  item.className = 'list-item';
+  item.id = id;
+  item.innerText = `${data.car_number} - ₹${data.total_charge}`;
+  
+  item.onclick = () => {
+    // Remove active class from other items
+    document.querySelectorAll('.list-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    renderDetail(data);
+  }
+
+  messageListEl.prepend(item); // newest on top
+}
+
+// Clear button
+document.getElementById('clear-btn').onclick = () => {
+  messageListEl.innerHTML = '';
+  Object.keys(messageCache).forEach(k => delete messageCache[k]);
+  renderDetail({car_number:'--', distance:'--', charge_per_km_cars:'--', total_charge:'--'});
+  qrSrc = "";
+}
+
+// WebSocket message
 chatSocket.onmessage = function(e) {
-    const data = JSON.parse(e.data);
-    console.log(data.message);
-};
+  const eventData = JSON.parse(e.data);
+  const data = JSON.parse(eventData.message);
+  addMessageItem(data);
+}
 
 chatSocket.onclose = function(e) {
-    console.error('Chat socket closed unexpectedly');
+  console.error('Chat socket closed unexpectedly');
 };
-
-function sendMessage(message) {
-    chatSocket.send(JSON.stringify({'message': message}));
-}
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

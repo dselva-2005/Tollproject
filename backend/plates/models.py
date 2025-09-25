@@ -11,9 +11,10 @@ class CarExit(models.Model):
     distance_from_entry = models.IntegerField()
 
 class Rfidcard(models.Model):
+    id = models.CharField(primary_key=True,unique=True, max_length=20)
     car_number = models.CharField(max_length=20)
-    user = models.OneToOneField(User,on_delete=models.CASCADE)
+    card_number = models.CharField(max_length=20)
 
 class Reader(models.Model):
-    reader_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.CharField(primary_key=True)
     car_exit = models.OneToOneField(CarExit,on_delete=models.CASCADE)
