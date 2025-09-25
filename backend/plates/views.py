@@ -51,7 +51,8 @@ def is_authenticated(request,id):
                         'message': json.dumps(data)
                     }
                 )
-    else: 
+                DetectedPlates.objects.get(plate_no=car_card.car_number).delete()
+    else:       
         Found = False
 
     return JsonResponse({'flag':Found})

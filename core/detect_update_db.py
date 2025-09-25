@@ -13,8 +13,9 @@ from ultralytics.utils import LOGGER
 redis_conn = Redis()
 queue = rq.Queue('db_updates', connection=redis_conn)
 YOLO_MODEL_PATH = "/home/dselva/MINIPROJECTTE/nanomodel/best.pt"
-VIDEO_SOURCE = "../test_samples/video2.mp4"
-CONFIDENCE_THRESHOLD = 0.75
+VIDEO_SOURCE = "http://192.168.1.100:8080/video"
+# VIDEO_SOURCE = "../test_samples/video2.mp4"
+CONFIDENCE_THRESHOLD = 0.80
 OCR_BACKEND = "paddle"  # Options: "trocr", "paddle", "easyocr"
 TROCR_MODEL = "microsoft/trocr-small-printed"
 EXPORT_RESULTS_PATH = "detected_plates1.txt"
@@ -117,16 +118,13 @@ def main():
 
                 try:
                     plate = ocr.recognize(cropped_plate)
-                    if plate:
-                        if USE_FUZZY_MATCHING:
-                            if any(is_similar(plate, existing_plate) for existing_plate in plates_detected):
-                                continue
-                        else:
-                            if any(plate == existing_plate for existing_plate in plates_detected):
-                                continue
+                    # if plate:
+                    #     if USE_FUZZY_MATCHING:
+                    #         if any(is_similar(plate, existing_plate) for existing_plate in plates_detected):
+                    #             continue
 
-                        plates_detected.add(plate)
-                        queue.enqueue('db_worker.update_database', plate)
+                    plates_detected.add(plate)
+                    queue.enqueue('plates.tasks.update_database', plate, result_ttl=0)
                 except:
                     continue
 
@@ -138,5 +136,5 @@ def main():
 # ========== ENTRY POINT ==========
 if __name__ == "__main__":
     main()
-    queue.enqueue('db_worker.clear_database')
+    queue.enqueue('plates.tasks.clear_database')
 
